@@ -1,0 +1,364 @@
+import { Switch, Route, Router as WouterRouter } from "wouter";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { Toaster } from "@/components/ui/toaster";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import NotFound from "@/pages/not-found";
+import Chat from "@/pages/chat";
+
+const queryClient = new QueryClient();
+
+function Router() {
+  return (
+    <Switch>
+      <Route path="/" component={Chat} />
+      <Route component={NotFound} />
+    </Switch>
+  );
+}
+
+function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+          <Router />
+        </WouterRouter>
+        <Toaster />
+      </TooltipProvider>
+    </QueryClientProvider>
+  );
+}
+
+export default App;
+
+
+
+
+
+
+
+
+import { useState, useRef, useEffect } from "react";
+import { getCHALOResponse } from "@/lib/chatbot";
+import { Bot, Sparkles, User } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+
+interface Message {
+  id: string;
+  role: "user" | "chalo";
+  text: string;
+  timestamp: Date;
+}
+
+interface PresetOption {
+  label: string;
+  value: string;
+  emoji: string;
+}
+
+const PRESET_OPTIONS: PresetOption[] = [
+  { label: "Hello",            value: "hello",            emoji: "👋" },
+  { label: "Good Morning",     value: "good morning",     emoji: "🌅" },
+  { label: "Good Evening",     value: "good evening",     emoji: "🌙" },
+  { label: "How are you?",     value: "how are you",      emoji: "🤔" },
+  { label: "Who are you?",     value: "who are you",      emoji: "🤖" },
+  { label: "What can you do?", value: "what can you do",  emoji: "💡" },
+  { label: "Who made you?",    value: "who made you",     emoji: "👨‍💻" },
+  { label: "Tell me a joke",   value: "tell me a joke",   emoji: "😂" },
+  { label: "Give me a quote",  value: "give me a quote",  emoji: "📜" },
+  { label: "Motivate me",      value: "motivate me",      emoji: "🚀" },
+  { label: "What time is it?", value: "what time is it",  emoji: "🕐" },
+  { label: "What day is it?",  value: "what day is it",   emoji: "📅" },
+  { label: "Weather",          value: "weather",          emoji: "☀️" },
+  { label: "Flip a coin",      value: "flip a coin",      emoji: "🪙" },
+  { label: "Roll a dice",      value: "roll a dice",      emoji: "🎲" },
+  { label: "Random number",    value: "random number",    emoji: "🔢" },
+  { label: "Meaning of life",  value: "meaning of life",  emoji: "✨" },
+  { label: "Are you human?",   value: "are you human",    emoji: "👁️" },
+  { label: "I'm happy",        value: "i'm happy",        emoji: "😊" },
+  { label: "I'm bored",        value: "i'm bored",        emoji: "😴" },
+  { label: "I'm sad",          value: "i'm sad",          emoji: "💙" },
+  { label: "Thanks!",          value: "thank you",        emoji: "🙏" },
+  { label: "Goodbye",          value: "bye",              emoji: "👋" },
+];
+
+export default function Chat() {
+  const [messages, setMessages] = useState<Message[]>([{
+    id: "welcome-msg",
+    role: "chalo",
+    text: "Hey there! I'm CHALO — your rule-based companion. Pick an option below to get started!",
+    timestamp: new Date(),
+  }]);
+  const [isTyping, setIsTyping] = useState(false);
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, isTyping]);
+
+  const handleSelect = (option: PresetOption) => {
+    if (isTyping) return;
+
+    const userMsg: Message = {
+      id: `user-${Date.now()}`,
+      role: "user",
+      text: option.label,
+      timestamp: new Date(),
+    };
+
+    setMessages((prev) => [...prev, userMsg]);
+    setIsTyping(true);
+
+    setTimeout(() => {
+      const responseText = getCHALOResponse(option.value);
+      const chaloMsg: Message = {
+        id: `chalo-${Date.now()}`,
+        role: "chalo",
+        text: responseText,
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, chaloMsg]);
+      setIsTyping(false);
+    }, 600 + Math.random() * 200);
+  };
+
+  return (
+    <div className="flex flex-col h-[100dvh] w-full bg-background text-foreground">
+      {/* Header */}
+      <header className="flex-none border-b border-white/5 bg-background/80 backdrop-blur-md sticky top-0 z-10 p-4">
+        <div className="max-w-4xl mx-auto flex items-center gap-3">
+          <div className="bg-primary/20 p-2 rounded-xl border border-primary/30">
+            <Bot className="w-6 h-6 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
+              CHALO
+              <Sparkles className="w-4 h-4 text-accent animate-pulse" />
+            </h1>
+            <p className="text-sm text-muted-foreground font-medium">Your Rule-Based AI Companion</p>
+          </div>
+        </div>
+      </header>
+
+      {/* Chat Area */}
+      <div className="flex-1 overflow-hidden relative">
+        <ScrollArea className="h-full px-4" data-testid="list-messages">
+          <div className="max-w-4xl mx-auto py-6 flex flex-col gap-4">
+            <AnimatePresence initial={false}>
+              {messages.map((msg) => (
+                <motion.div
+                  key={msg.id}
+                  initial={{ opacity: 0, y: 10, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  transition={{ duration: 0.3, ease: "easeOut" }}
+                  className={`flex items-end gap-3 ${msg.role === "user" ? "flex-row-reverse" : "flex-row"}`}
+                  data-testid={`message-${msg.id}`}
+                >
+                  <Avatar className={`w-8 h-8 ring-2 shrink-0 ${msg.role === "chalo" ? "ring-primary/20 bg-primary/10" : "ring-accent/20 bg-accent/10"}`}>
+                    <AvatarFallback className="bg-transparent">
+                      {msg.role === "chalo"
+                        ? <Bot className="w-4 h-4 text-primary" />
+                        : <User className="w-4 h-4 text-accent" />}
+                    </AvatarFallback>
+                  </Avatar>
+
+                  <div className={`px-4 py-3 rounded-2xl max-w-[85%] shadow-sm ${
+                    msg.role === "user"
+                      ? "bg-accent/15 text-white rounded-br-sm border border-accent/20"
+                      : "bg-card text-card-foreground rounded-bl-sm border border-white/5"
+                  }`}>
+                    <p className="text-[15px] leading-relaxed break-words whitespace-pre-wrap">{msg.text}</p>
+                    <span className="text-[10px] opacity-50 mt-1 block select-none">
+                      {msg.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                  </div>
+                </motion.div>
+              ))}
+            </AnimatePresence>
+
+            {/* Typing indicator */}
+            {isTyping && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                className="flex items-end gap-3"
+              >
+                <Avatar className="w-8 h-8 ring-2 ring-primary/20 bg-primary/10 shrink-0">
+                  <AvatarFallback className="bg-transparent">
+                    <Bot className="w-4 h-4 text-primary" />
+                  </AvatarFallback>
+                </Avatar>
+                <div className="bg-card px-4 py-4 rounded-2xl rounded-bl-sm border border-white/5 flex items-center gap-1">
+                  {[0, 0.2, 0.4].map((delay, i) => (
+                    <motion.div
+                      key={i}
+                      animate={{ y: [0, -4, 0] }}
+                      transition={{ repeat: Infinity, duration: 0.6, delay }}
+                      className="w-1.5 h-1.5 bg-primary/60 rounded-full"
+                    />
+                  ))}
+                </div>
+              </motion.div>
+            )}
+            <div ref={bottomRef} className="h-2" />
+          </div>
+        </ScrollArea>
+      </div>
+
+      {/* Predefined Options Panel */}
+      <div className="flex-none border-t border-white/5 bg-background/80 backdrop-blur-md">
+        <div className="max-w-4xl mx-auto px-4 pt-3 pb-4">
+          <p className="text-[11px] text-muted-foreground font-semibold uppercase tracking-widest mb-2 px-1">
+            Choose a topic
+          </p>
+          <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-[220px] overflow-y-auto pr-1"
+               data-testid="options-grid">
+            {PRESET_OPTIONS.map((option) => (
+              <motion.button
+                key={option.value}
+                whileTap={{ scale: 0.95 }}
+                whileHover={{ scale: 1.02 }}
+                onClick={() => handleSelect(option)}
+                disabled={isTyping}
+                data-testid={`option-${option.value.replace(/\s+/g, "-")}`}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-card border border-white/8 hover:border-primary/40 hover:bg-primary/10 text-left text-[13px] font-medium text-white/80 hover:text-white transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+              >
+                <span className="text-base leading-none shrink-0">{option.emoji}</span>
+                <span className="truncate">{option.label}</span>
+              </motion.button>
+            ))}
+          </div>
+          <p className="text-center text-[11px] text-muted-foreground mt-3 font-medium">
+            CHALO is rule-based — no machine learning, just good old logic.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+
+
+
+export function getCHALOResponse(rawInput: string): string {
+  const input = rawInput.trim().toLowerCase();
+
+  // ── Greetings ──────────────────────────────────────────────
+  if (/^(hi|hello|hey|howdy|hola|what's up|sup|greetings)$/.test(input))
+    return "Hey there! I'm CHALO — your rule-based companion. Ask me anything!";
+  if (input === "good morning")
+    return "Good morning! Ready to have a great conversation? What's on your mind?";
+  if (input === "good afternoon")
+    return "Good afternoon! How can I help you today?";
+  if (input === "good evening" || input === "good night")
+    return "Good evening! Hope your day was great. What's up?";
+
+  // ── Identity ───────────────────────────────────────────────
+  if (/^(who are you|what are you|tell me about yourself|what is chalo)$/.test(input))
+    return "I'm CHALO — a rule-based chatbot built with if-else logic and lots of personality. No machine learning here, just smart pattern matching!";
+  if (/^(what can you do|help|commands)$/.test(input))
+    return "I can chat about: greetings, my identity, jokes, weather, time, math, advice, quotes, and more!";
+  if (/^(who made you|who created you|who built you)$/.test(input))
+    return "I was crafted by a talented developer using React and TypeScript. I'm proud of my rule-based roots!";
+
+  // ── Exit / Farewell ────────────────────────────────────────
+  if (/^(bye|goodbye|see you|exit|quit|farewell|take care|later)$/.test(input))
+    return "Goodbye! It was great chatting with you. Come back anytime! 👋";
+  if (/^(thank you|thanks|ty|thx)$/.test(input))
+    return "You're welcome! Happy to help anytime 😊";
+
+  // ── Jokes ──────────────────────────────────────────────────
+  if (/^(tell me a joke|joke|make me laugh|funny)$/.test(input)) {
+    const jokes = [
+      "Why don't scientists trust atoms? Because they make up everything!",
+      "I told my computer I needed a break. Now it won't stop sending me Kit-Kat ads.",
+      "Why do programmers prefer dark mode? Because light attracts bugs!",
+      "How many programmers does it take to change a light bulb? None — that's a hardware problem.",
+      "Why did the developer go broke? Because they used up all their cache.",
+    ];
+    return jokes[Math.floor(Math.random() * jokes.length)];
+  }
+
+  // ── Time & Date ────────────────────────────────────────────
+  if (/^(what time is it|current time|time)$/.test(input))
+    return `The current time is ${new Date().toLocaleTimeString()}. (Based on your local timezone.)`;
+  if (/^(what day is it|today|what's the date|date)$/.test(input))
+    return `Today is ${new Date().toLocaleDateString()}.`;
+
+  // ── Weather ────────────────────────────────────────────────
+  if (/^(weather|what's the weather|is it raining)$/.test(input))
+    return "I can't fetch live weather data (I'm rule-based!), but try weather.com or your phone's app. ☀️";
+
+  // ── Math ───────────────────────────────────────────────────
+  const addMatch = input.match(/what is (\d+)\s*\+\s*(\d+)|(\d+)\s*plus\s*(\d+)/);
+  if (addMatch) {
+    const a = parseInt(addMatch[1] || addMatch[3], 10);
+    const b = parseInt(addMatch[2] || addMatch[4], 10);
+    return `That's easy! ${a} + ${b} = ${a + b}.`;
+  }
+  const subMatch = input.match(/what is (\d+)\s*-\s*(\d+)|(\d+)\s*minus\s*(\d+)/);
+  if (subMatch) {
+    const a = parseInt(subMatch[1] || subMatch[3], 10);
+    const b = parseInt(subMatch[2] || subMatch[4], 10);
+    return `That's easy! ${a} - ${b} = ${a - b}.`;
+  }
+  if (/^(math|calculate)$/.test(input))
+    return "I can do basic addition and subtraction! Try 'what is 5 + 3' or '10 minus 4'.";
+
+  // ── Advice & Motivation ────────────────────────────────────
+  if (/^(motivate me|inspire me|give me advice|advice)$/.test(input)) {
+    const advice = [
+      "Keep going. Every expert was once a beginner.",
+      "The best time to start was yesterday. The second best time is now.",
+      "Believe in yourself — you're capable of more than you know.",
+      "Progress, not perfection. Take it one step at a time.",
+      "Challenges are just opportunities wearing a tough disguise.",
+    ];
+    return advice[Math.floor(Math.random() * advice.length)];
+  }
+
+  // ── Quotes ─────────────────────────────────────────────────
+  if (/^(quote|give me a quote|wise words)$/.test(input)) {
+    const quotes = [
+      '"The only way to do great work is to love what you do." — Steve Jobs',
+      '"In the middle of every difficulty lies opportunity." — Albert Einstein',
+      '"It does not matter how slowly you go as long as you do not stop." — Confucius',
+      '"Everything you\'ve ever wanted is on the other side of fear." — George Addair',
+      '"Success is not final, failure is not fatal: it is the courage to continue that counts." — Winston Churchill',
+    ];
+    return quotes[Math.floor(Math.random() * quotes.length)];
+  }
+
+  // ── Feelings ───────────────────────────────────────────────
+  if (/^(how are you|how are you doing|how's it going)$/.test(input))
+    return "I'm just a bunch of if-else statements, but I'm feeling logically great! How about you?";
+  if (/^(i'm sad|i feel sad|i'm depressed)$/.test(input))
+    return "I'm sorry to hear that. It's okay to feel down sometimes. Things will get better 💙";
+  if (/^(i'm happy|i feel happy|i'm excited)$/.test(input))
+    return "That's wonderful! Your happiness is contagious. Keep smiling! 😊";
+  if (input === "i'm bored")
+    return "Bored? Ask me a joke, request a quote, or roll a dice — I'm full of surprises!";
+  if (/^(i'm angry|i'm frustrated)$/.test(input))
+    return "Take a deep breath. Whatever it is, you can handle it. Want a motivational quote?";
+
+  // ── Miscellaneous ──────────────────────────────────────────
+  if (input === "flip a coin")
+    return Math.random() < 0.5 ? "Heads! 🪙" : "Tails! 🪙";
+  if (/^(roll a dice|roll dice)$/.test(input))
+    return `You rolled a ${Math.floor(Math.random() * 6) + 1}! 🎲`;
+  if (input === "random number")
+    return `Here's a random number: ${Math.floor(Math.random() * 100) + 1}`;
+  if (/^(what is the meaning of life|meaning of life|42)$/.test(input))
+    return "42. Obviously. (According to The Hitchhiker's Guide to the Galaxy.)";
+  if (/^(are you human|are you real|are you alive)$/.test(input))
+    return "I'm CHALO — a clever collection of if-else statements pretending to be wise. Does that count?";
+  if (/^(do you like music|favorite song)$/.test(input))
+    return "If I could listen to music, I'd probably like something logical — maybe Beethoven's algorithms. 🎵";
+
+  // ── Default fallback ───────────────────────────────────────
+  return "Hmm, I'm not sure how to respond to that. Try: greetings, jokes, time, date, quotes, or advice!";
+}
